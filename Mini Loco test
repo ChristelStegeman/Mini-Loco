@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini Loco – Nielsen Heuristieken & Code</title>
+  <style>
+    :root {
+      --loco-red: #d32f2f;
+      --loco-blue: #1976d2;
+      --loco-yellow: #fbc02d;
+      --loco-orange: #f57c00;
+      --case-border: #b71c1c;
+      --tile-size: 85px;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #e0e0e0;
+      color: #333;
+      padding: 20px;
+    }
+
+    .main-layout {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 30px;
+    }
+
+    @media (max-width: 1000px) {
+      .main-layout { grid-template-columns: 1fr; }
+    }
+
+    /* Linkerkant: Vragenlijst */
+    .questions-sidebar {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      border-top: 8px solid var(--loco-blue);
+      height: fit-content;
+    }
+
+    h1 { color: var(--loco-blue); margin-top: 0; font-size: 20px; text-align: center; }
+    
+    .q-row {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      border: 1px solid #eee;
+      margin-bottom: 8px;
+    }
+
+    .q-num {
+      background: var(--loco-blue);
+      color: white;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+
+    /* Rechterkant: Game Area */
+    .game-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .tiles-bank {
+      background: #bbb;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      justify-items: center;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .loco-case {
+      background: var(--loco-red);
+      padding: 25px;
+      border-radius: 20px;
+      border: 8px solid var(--case-border);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+    }
+
+    .loco-grid {
+      display: grid;
+      grid-template-columns: repeat(5, var(--tile-size));
+      grid-template-rows: repeat(2, var(--tile-size));
+      gap: 12px;
+      background: var(--case-border);
+      padding: 15px;
+      border-radius: 10px;
+      position: relative;
+    }
+
+    .grid-slot {
+      width: var(--tile-size);
+      height: var(--tile-size);
+      background: rgba(255,255,255,0.1);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .slot-hint {
+      position: absolute;
+      color: rgba(255,255,255,0.3);
+      font-weight: bold;
+      font-size: 24px;
+      pointer-events: none;
+    }
+
+    .grid-slot.hover {
+      background: rgba(255,255,255,0.3);
+      border: 2px dashed white;
+    }
+
+    /* De Tegel */
+    .tile {
+      width: var(--tile-size);
+      height: var(--tile-size);
+      perspective: 1000px;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+      z-index: 10;
+    }
+    .tile:active { cursor: grabbing; }
+
+    .tile-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
+    }
+
+    .flipped .tile-inner { transform: rotateY(180deg); }
+
+    .tile-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+      box-shadow: inset 0 -4px 0 rgba(0,0,0,0.2), 0 4px 6px rgba(0,0,0,0.2);
+    }
+
+    .tile-front { background: white; color: var(--loco-blue); border: 1px solid #ddd; }
+    
+    /* Achterkant met Clip-Path voor Code Segmenten */
+    .tile-back { 
+      background: var(--loco-blue); 
+      transform: rotateY(180deg); 
+      overflow: hidden; 
+      position: relative;
+    }
+
+    /* Container voor het code-fragment op één tegel */
+    .code-fragment-container {
+      position: absolute;
+      width: calc(5 * var(--tile-size) + 4 * 12px); /* Totale breedte van het grid */
+      height: calc(2 * var(--tile-size) + 1 * 12px); /* Totale hoogte van het grid */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      color: white;
+      font-family: 'Courier New', Courier, monospace; /* Monospace voor herkenbare code look */
+      font-size: 100px;
+      font-weight: 900;
+      letter-spacing: 20px;
+    }
+
+    .controls {
+      margin-top: 25px;
+      display: flex;
+      gap: 15px;
+    }
+
+    button {
+      padding: 12px 25px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 16px;
+      transition: transform 0.1s;
+    }
+    button:active { transform: scale(0.95); }
+
+    #checkBtn { background: #4CAF50; color: white; box-shadow: 0 4px 0 #2e7d32; }
+    #checkBtn:disabled { background: #999; box-shadow: none; cursor: not-allowed; opacity: 0.6; }
+    
+    .reset-btn { background: #555; color: white; box-shadow: 0 4px 0 #333; }
+
+    #feedback {
+      margin-top: 15px;
+      font-weight: bold;
+      font-size: 18px;
+      text-align: center;
+      min-height: 24px;
+    }
+
+    .legend {
+      font-size: 12px;
+      background: #f0f4f8;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+    .legend b { color: var(--loco-red); }
+  </style>
+</head>
+<body>
+
+  <div class="main-layout">
+    <aside class="questions-sidebar">
+      <h1>Opdracht kaart</h1>
+      <div class="legend">
+        <div><b>1.</b> Systeemstatus</div>
+        <div><b>2.</b> Echte wereld</div>
+        <div><b>3.</b> Vrijheid</div>
+        <div><b>4.</b> Consistentie</div>
+        <div><b>5.</b> Foutpreventie</div>
+        <div><b>6.</b> Herkennen</div>
+        <div><b>7.</b> Flexibiliteit</div>
+        <div><b>8.</b> Minimalisme</div>
+        <div><b>9.</b> Fouten herstellen</div>
+        <div><b>10.</b> Help</div>
+      </div>
+      <div id="questionsContainer"></div>
+    </aside>
+
+    <main class="game-area">
+      <p style="margin-bottom: 10px; font-weight: bold;">Sleep de stenen naar het juiste vakje:</p>
+      <div class="tiles-bank" id="tilesBank"></div>
+
+      <div class="loco-case">
+        <div class="loco-grid" id="locoGrid"></div>
+      </div>
+
+      <div class="controls">
+        <button id="checkBtn" disabled>Draai de doos om</button>
+        <button class="reset-btn" onclick="location.reload()">Reset</button>
+      </div>
+      
+      <div id="feedback"></div>
+    </main>
+  </div>
+
+  <script>
+    const questions = [
+      { id: 1, text: "Status: Een laadbalk laat zien hoe ver de video is met uploaden.", correct: 1 },
+      { id: 2, text: "Match: Een map op je bureaublad ziet eruit als een fysieke map.", correct: 2 },
+      { id: 3, text: "Vrijheid: De gebruiker klikt op 'Annuleren' bij een verkeerde aankoop.", correct: 3 },
+      { id: 4, text: "Consistentie: In elk menu betekent het kruisje 'Sluiten'.", correct: 4 },
+      { id: 5, text: "Foutpreventie: De website vraagt bevestiging voordat een account wordt verwijderd.", correct: 5 },
+      { id: 6, text: "Herkennen: Het systeem toont de laatst bezochte pagina's.", correct: 6 },
+      { id: 7, text: "Flexibiliteit: Gebruikers kunnen eigen sneltoetsen instellen.", correct: 7 },
+      { id: 8, text: "Minimalisme: De website heeft veel witruimte en alleen essentiële info.", correct: 8 },
+      { id: 9, text: "Fouten: De melding zegt 'Oeps, uw postcode moet 4 cijfers en 2 letters zijn'.", correct: 9 },
+      { id: 10, text: "Help: Er is een tutorial beschikbaar voor nieuwe gebruikers.", correct: 10 }
+    ];
+
+    const tilesBank = document.getElementById('tilesBank');
+    const questionsContainer = document.getElementById('questionsContainer');
+    const locoGrid = document.getElementById('locoGrid');
+    const checkBtn = document.getElementById('checkBtn');
+    const feedback = document.getElementById('feedback');
+
+    let tilesPlaced = 0;
+
+    function setupQuestions() {
+      questions.forEach(q => {
+        const div = document.createElement('div');
+        div.className = 'q-row';
+        div.innerHTML = `<div class="q-num">${q.id}</div><div style="font-size: 13px;">${q.text}</div>`;
+        questionsContainer.appendChild(div);
+      });
+    }
+
+    function setupTiles() {
+      for (let i = 1; i <= 10; i++) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.draggable = true;
+        tile.id = `tile-${i}`;
+        tile.dataset.num = i;
+        tile.innerHTML = `
+          <div class="tile-inner">
+            <div class="tile-face tile-front">${i}</div>
+            <div class="tile-face tile-back"></div>
+          </div>
+        `;
+        tile.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/plain', i));
+        tilesBank.appendChild(tile);
+      }
+    }
+
+    function setupGrid() {
+      for (let i = 1; i <= 10; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'grid-slot';
+        slot.dataset.slotIdx = i;
+        slot.innerHTML = `<div class="slot-hint">${i}</div>`;
+        slot.addEventListener('dragover', (e) => e.preventDefault());
+        slot.addEventListener('dragenter', () => slot.classList.add('hover'));
+        slot.addEventListener('dragleave', () => slot.classList.remove('hover'));
+        slot.addEventListener('drop', handleDrop);
+        locoGrid.appendChild(slot);
+      }
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      this.classList.remove('hover');
+      const tileNum = e.dataTransfer.getData('text/plain');
+      const tile = document.getElementById(`tile-${tileNum}`);
+      if (this.querySelector('.tile')) {
+        tilesBank.appendChild(this.querySelector('.tile'));
+      } else {
+        tilesPlaced++;
+      }
+      this.appendChild(tile);
+      if (tilesPlaced >= 10) checkBtn.disabled = false;
+    }
+
+    checkBtn.onclick = () => {
+      let perfect = true;
+      const slots = document.querySelectorAll('.grid-slot');
+      
+      // Bereken afmetingen voor uitlijning code
+      const gap = 12;
+      const tSize = 85;
+
+      slots.forEach((slot, index) => {
+        const tile = slot.querySelector('.tile');
+        const tileNum = parseInt(tile.dataset.num);
+        const isCorrect = (tileNum === questions[index].correct);
+        if (!isCorrect) perfect = false;
+
+        const back = tile.querySelector('.tile-back');
+        back.innerHTML = '';
+        
+        // Maak de fragment container
+        const fragCont = document.createElement('div');
+        fragCont.className = 'code-fragment-container';
+        fragCont.innerText = "3 9 7"; // De code die verschijnt
+
+        // Bereken positie van dit specifieke fragment t.o.v. de hele code
+        const col = index % 5;
+        const row = Math.floor(index / 5);
+        
+        const offsetX = -(col * (tSize + gap) + 15); // +15 voor padding in doos
+        const offsetY = -(row * (tSize + gap) + 15);
+        
+        fragCont.style.left = offsetX + "px";
+        fragCont.style.top = offsetY + "px";
+
+        // Alleen tonen als steen op de juiste plek ligt voor de "magische" ervaring
+        // In een echte Loco zie je het ook als het fout is, maar dan verspringt het.
+        // We simuleren dat door de fragmenten altijd te tekenen op basis van de SLOT positie.
+        back.appendChild(fragCont);
+
+        // Achtergrond kleur patroon
+        const isYellow = (index % 2 === Math.floor(index / 5) % 2);
+        back.style.backgroundColor = isYellow ? 'var(--loco-yellow)' : 'var(--loco-orange)';
+
+        setTimeout(() => tile.classList.add('flipped'), index * 100);
+      });
+
+      if (perfect) {
+        feedback.innerText = "De code is ontcijferd: 397! 🎉";
+        feedback.style.color = "#2e7d32";
+      } else {
+        feedback.innerText = "De code is onleesbaar. Controleer je antwoorden!";
+        feedback.style.color = "#d32f2f";
+      }
+      checkBtn.disabled = true;
+    };
+
+    setupQuestions();
+    setupTiles();
+    setupGrid();
+  </script>
+</body>
+</html>
